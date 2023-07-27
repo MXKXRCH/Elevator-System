@@ -10,11 +10,14 @@ public class ElevatorController implements IUpdatable {
     public ElevatorController(int floorsCount, int elevatorsCount) {
         this.elevators = new Elevator[elevatorsCount];
         for (int i = 0; i < elevators.length; i++) {
-            elevators[i] = new Elevator(this);
+            elevators[i] = new Elevator(this, i + 1);
         }
         this.floors = new Floor[floorsCount];
         for (int i = 0; i < floorsCount; i++) {
             floors[i] = new Floor(i + 1, elevators, this);
+        }
+        for (Elevator elevator : elevators) {
+            elevator.setRunningFloor(floors[0]);
         }
     }
 
@@ -28,13 +31,8 @@ public class ElevatorController implements IUpdatable {
         }
     }
 
-    //Public
-    public void setMaxPeopleCount(int count, int elevatorId) {
-        if (elevatorId < 0 || elevatorId >= elevators.length || count <= 0) {
-            System.out.println("Cant set max people count");
-        } else {
-            elevators[elevatorId].setMaxPeopleCount(count);
-        }
+    public void addWishedFloors(int label, int wishedLabel) throws NoSuchFloorException {
+        getFloorByLabel(label).addWishedFloor(wishedLabel);
     }
 
     public Floor getNextFloor(Floor floor, boolean isMovingUp) {
@@ -51,6 +49,15 @@ public class ElevatorController implements IUpdatable {
             throw new NoSuchFloorException(label, floors.length);
         }
         return floors[label - 1];
+    }
+
+    public boolean isElevatorBused(Elevator elevator) {
+        for (Floor floor : floors) {
+            if (floor.getWaitedElevator() == elevator) {
+                return true;
+            }
+        }
+        return false;
     }
 
     //Getters/setters

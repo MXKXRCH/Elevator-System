@@ -3,135 +3,136 @@ package elevator;
 import java.util.HashSet;
 
 public class Elevator implements IUpdatable {
+    private int id;                     //id лифта
     private Floor runningFloor;             //текущий этаж (значение дисплея можно будет получить через эту ссылку)
     private ElevatorState state;            //состояние
     private ElevatorController controller;  //контроллер лифтов
     private boolean isMoveDetected;         //значение датчика
     private HashSet<Floor> destinations;    //список этажей, на которые лифт должен приехать
-    //пусть нагруженность измеряется не при помощи веса груза, а при помощи количества людей, для упрощения модели
-    private int maxPeopleCount;             //максимальное количество людей, которые могут быть в лифте
-    private int peopleCount;                //сколько людей в лифте
+    private Floor runningDestination;       //текущий этаж назначения
+    private int endLabel = 0;
 
-    public Elevator(ElevatorController controller) {
+    public Elevator(ElevatorController controller, int id) {
+        this.id = id;
         this.state = ElevatorState.WAITING;
         this.isMoveDetected = false;
         this.controller = controller;
         this.destinations = new HashSet<>();
-        maxPeopleCount = 3;
     }
 
     //Public
     @Override
     public void updateState() {
+        StringBuilder message = new StringBuilder();
         switch (state) {
             case MOOVING_UP -> {
+                message.append("Лифт №" + id + " движется вверх");
                 setNewFloor(true);
             }
             case MOOVING_DOWN -> {
+                message.append("Лифт №" + id + " движется ввниз");
                 setNewFloor(false);
             }
             case OPENNING_DOORS -> {
+                message.append("Лифт №" + id + " открыл двери");
                 state = ElevatorState.STAY_WITH_OPENNED_DOORS;
             }
             case STAY_WITH_OPENNED_DOORS -> {
+                message.append("Лифт №" + id + " стоит с открытыми дверьми, проверка датчика");
                 if (!isMoveDetected) {
                     state = ElevatorState.CLOSING_DOORS;
                 }
             }
             case CLOSING_DOORS -> {
+                message.append("Лифт №" + id + " закрывает двери");
                 state = ElevatorState.WAITING;
             }
             default -> {
+                message.append("Лифт №" + id + " ожидает команды");
                 if (!destinations.isEmpty()) { //если есть этажи, куда может приехать лифт
-                    if (isFloorsUnder()) {
+                    getNearestDestination();
+                    if (runningFloor == runningDestination || runningDestination == null) {
+                        checkFloor();
+                        return;
+                    }
+                    if (isFloorUnder()) {
                         state = ElevatorState.MOOVING_DOWN;
                     } else {
                         state = ElevatorState.MOOVING_UP;
                     }
+                } else {
+                    checkFloor();
                 }
             }
         }
+        message.append(". Текущий этаж: ")
+                .append(runningFloor.getLabel());
+        System.out.println(message);
     }
 
-    public boolean addOnePeople() {
-        if (peopleCount + 1 <= maxPeopleCount && state == ElevatorState.STAY_WITH_OPENNED_DOORS) {
-            peopleCount++;
-            isMoveDetected = true;
-            return true;
+    public void addDestination(Floor floor) {
+        if (runningDestination == null) {
+            runningDestination = floor;
         }
-        return false;
+        destinations.add(floor);
     }
 
-    public boolean removeOnePeople() {
-        if (peopleCount - 1 >= 0 && state == ElevatorState.STAY_WITH_OPENNED_DOORS) {
-            peopleCount--;
-            isMoveDetected = true;
-            return true;
-        }
-        return false;
+    public void removeDestination(Floor floor) {
+        destinations.remove(floor);
     }
 
-    public int getDistanceToTheFloor(Floor floor) {
+    public int getDistanceToTheFloor(Floor floor) { //растояние до этажа
         return Math.abs(runningFloor.getLabel() - floor.getLabel());
     }
 
-    public boolean isBusy() {                      //занят ли лифт
-        return
-                peopleCount == maxPeopleCount ||    //если полностью нагружен, то да
-                state == ElevatorState.MOOVING_UP;  //если едет вверх - тоже
-                //нет смысла останавливаться на каждом этаже при движении вверх,
-                //вероятнее всего, люди будут стремиться спуститься вниз
-                //тогда, для оптимизации времени перевозки, будет возможность везти нескольких людей с более высоких
-                //этажей на первый
-    }
-
-
-    public void unpressFloorButton(int i) { //убрать нажатие кнопки этажа
-        try {
-            destinations.remove(controller.getFloorByLabel(i));
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-        }
+    public boolean isBusy() { //занят ли лифт
+        return state != ElevatorState.WAITING;
     }
 
     public void pressFloorButton(int i) { //нажать кнопку этажа
         try {
             destinations.add(controller.getFloorByLabel(i));
+            System.out.println("В лифте №" + id + " нажата кнопка " + i);
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }
     }
 
     //Private
-    private void checkFloor() { //проверка, можно ли остановиться на текущем этаже
-        if (destinations.contains(runningFloor)) {
-            destinations.remove(runningFloor);
-            runningFloor.setButtonPressed(false);
-            state = ElevatorState.OPENNING_DOORS;
+    private void getNearestDestination() { //получить близжайший пункт назначения
+        destinations.remove(runningFloor);
+        runningDestination = null;
+        for(Floor floor : destinations) {
+            if (
+                    runningDestination == null ||
+                    getDistanceToTheFloor(floor) < getDistanceToTheFloor(runningDestination)
+            ) {
+                runningDestination = floor;
+            }
         }
     }
 
-    private boolean isFloorsUnder() { //проверка, есть ли активные этажи внизу
-        if (runningFloor.getLabel() == 1) {
-            return false;
+    private boolean isFloorUnder() { //есть ли этажи внизу
+        return runningFloor.getLabel() - runningDestination.getLabel() > 0;
+    }
+
+    private void checkFloor() { //проверка, можно ли остановиться на текущем этаже
+        if (destinations.contains(runningFloor) || runningFloor.isButtonPressed()) {
+            destinations.remove(runningFloor);
+            runningFloor.clearFloor();
+            System.out.println("Лифт №" + id + " начал открывать двери. Текущий этаж: " + runningFloor.getLabel());
+            state = ElevatorState.OPENNING_DOORS;
+            runningFloor.setWaitedElevator(this);
         }
-        for (Floor floor : destinations) {
-            if (floor.getLabel() < runningFloor.getLabel()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void setNewFloor(boolean isMovingUp) { //назначение текущего этажа
         Floor floor = controller.getNextFloor(runningFloor, isMovingUp);
-        if (floor == null) {
+        if (floor == null || !destinations.contains(runningDestination)) {
             state = ElevatorState.WAITING;
         } else  {
             runningFloor = floor;
-            if (!isMovingUp) {
-                checkFloor();
-            }
+            checkFloor();
         }
     }
 
@@ -152,11 +153,15 @@ public class Elevator implements IUpdatable {
         this.state = state;
     }
 
-    public int getMaxPeopleCount() {
-        return maxPeopleCount;
+    public void setIsMoveDetected(boolean val) {
+        this.isMoveDetected = val;
     }
 
-    public void setMaxPeopleCount(int maxPeopleCount) {
-        this.maxPeopleCount = maxPeopleCount;
+    public void setEndLabel(int endLabel) {
+        this.endLabel = endLabel;
+    }
+
+    public int getId() {
+        return id;
     }
 }

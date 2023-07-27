@@ -1,5 +1,10 @@
 package elevator;
 
+import elevator.exceptions.NoSuchFloorException;
+
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
 public class Floor implements IUpdatable {
     private boolean isButtonPressed;        //нажата ли кнопка
     private int label;                      //номер этажа
@@ -8,24 +13,41 @@ public class Floor implements IUpdatable {
     private Elevator waitedElevator;        //ожидаемый лифт
     private ElevatorController controller;  //главный контроллер лифтов для всего дома
 
+    private Queue<Integer> wishedFloors;
+
     public Floor(int label, Elevator[] elevators, ElevatorController controller) {
         this.elevators = elevators;
         this.label = label;
         this.controller = controller;
         isButtonPressed = false;
+        wishedFloors = new ConcurrentLinkedQueue<>();
     }
 
     //Public
     @Override
     public void updateState() {
         if (waitedElevator == null && isButtonPressed) {
+            System.out.println("На этаже " + label + " производится поиск свободного лифта");
             getTheNearestFreeElevator();
         }
-        if (waitedElevator != null) {
-            if (waitedElevator.isBusy() || !isButtonPressed) {
+        if (!isButtonPressed && waitedElevator != null) {
+            if (waitedElevator.getRunningFloor() == this) {
+                if (waitedElevator.getState() == ElevatorState.STAY_WITH_OPENNED_DOORS && !wishedFloors.isEmpty()) {
+                    waitedElevator.pressFloorButton(wishedFloors.remove());
+                    waitedElevator.setIsMoveDetected(false);
+                    clearWaitedElevator();
+                }
+            } else  {
                 clearWaitedElevator();
             }
         }
+    }
+
+    public void addWishedFloor(int n) throws NoSuchFloorException {
+        System.out.println("На этаже " + label + " изъявлено желание отправиться на " + n + " этаж");
+        controller.getFloorByLabel(n);
+        wishedFloors.add(n);
+        pressTheButton();
     }
 
     public String displayInfo() { //Получить информацию для всех дисплеев
@@ -43,28 +65,38 @@ public class Floor implements IUpdatable {
     }
 
     public void pressTheButton() {  //нажать кнопку
+        System.out.println("На этаже " + label + " нажата кнопка");
         isButtonPressed = true;
+    }
+
+    public void clearFloor() {
+        clearWaitedElevator();
+        isButtonPressed = false;
+    }
+
+    public void clearWaitedElevator() {
+        if (waitedElevator != null) {
+            waitedElevator.removeDestination(this);
+            waitedElevator = null;
+        }
     }
 
     //Private
     private void getTheNearestFreeElevator() {  //близжайший свободный лифт
         clearWaitedElevator();
         for (Elevator elevator : elevators) {
-            if (!elevator.isBusy()) {
+            if (!elevator.isBusy() && !controller.isElevatorBused(elevator)) {
                 if (
                         waitedElevator == null ||
-                                waitedElevator.getDistanceToTheFloor(this) > elevator.getDistanceToTheFloor(this)
+                        waitedElevator.getDistanceToTheFloor(this) > elevator.getDistanceToTheFloor(this)
                 ) {
                     waitedElevator = elevator;
                 }
             }
         }
-    }
-
-    private void clearWaitedElevator() {
         if (waitedElevator != null) {
-            waitedElevator.unpressFloorButton(label);
-            waitedElevator = null;
+            waitedElevator.addDestination(this);
+            System.out.println("На этаже " + label + " выбран лифт №" + waitedElevator.getId());
         }
     }
 
@@ -83,5 +115,13 @@ public class Floor implements IUpdatable {
 
     public void setButtonPressed(boolean buttonPressed) {
         isButtonPressed = buttonPressed;
+    }
+
+    public void setWaitedElevator(Elevator elevator) {
+        this.waitedElevator = elevator;
+    }
+
+    public Elevator getWaitedElevator() {
+        return this.waitedElevator;
     }
 }
