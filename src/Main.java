@@ -4,7 +4,7 @@ public class Main {
 
     public static void main(String[] args) {
         //Заполнение параметров
-	    ElevatorController controller = new ElevatorController(20, 2);
+	    ElevatorController controller = new ElevatorController(20, 2, 1);
         try {
             controller.addWishedFloors(1, 14);
             controller.addWishedFloors(15, 1);
