@@ -117,13 +117,18 @@ public class Elevator implements IUpdatable {
     }
 
     private void checkFloor() { //проверка, можно ли остановиться на текущем этаже
-        if (destinations.contains(runningFloor) || runningFloor.isButtonPressed()) {
+        if (
+            destinations.contains(runningFloor) || //если в назначенных этажах есть текущий или на этаже нажата кнопка
+            (runningFloor.isButtonPressed() && state != ElevatorState.MOOVING_UP)  //и лифт едет вниз
+        ) {
             destinations.remove(runningFloor);
             runningFloor.clearFloor();
             System.out.println("Лифт №" + id + " начал открывать двери. Текущий этаж: " + runningFloor.getLabel());
             state = ElevatorState.OPENNING_DOORS;
             runningFloor.setWaitedElevator(this);
         }
+        //при движении вверх нет смысла останавливаться на тех этажах, которые не указаны в назначенных, так как
+        //люди с большей вероятностью будут желать спуститься
     }
 
     private void setNewFloor(boolean isMovingUp) { //назначение текущего этажа
