@@ -8,6 +8,8 @@ public class ElevatorController implements IUpdatable {
     private Elevator[] elevators;   //список всех лифтов
 
     public ElevatorController(int floorsCount, int elevatorsCount, int offset) {
+        if (floorsCount <= 0) floorsCount = 9;
+        if (elevatorsCount <= 0) floorsCount = 1;
         this.elevators = new Elevator[elevatorsCount];
         for (int i = 0; i < elevators.length; i++) {
             elevators[i] = new Elevator(this, i + offset);
