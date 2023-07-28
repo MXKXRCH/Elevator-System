@@ -18,8 +18,8 @@ public class Main {
         * Аналогично со скоростью проезда лифтом одного этажа
         * Будем считать, что скорость движения обоих лифтов одинакова
         */
-        int simStep = 1;
-        while (simStep <= 38) {
+        int simStep = 1;        //шаг симуляции
+        while (simStep <= 38) { //за 38 шагов происходит полное выполнение всех действий, описанных в задании
             System.out.println("Шаг №" + simStep);
             controller.updateState();
             simStep++;

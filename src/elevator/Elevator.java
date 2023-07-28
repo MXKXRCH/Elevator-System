@@ -2,15 +2,18 @@ package elevator;
 
 import java.util.HashSet;
 
+//Класс кабины лифта
 public class Elevator implements IUpdatable {
-    private int id;                     //id лифта
-    private Floor runningFloor;             //текущий этаж (значение дисплея можно будет получить через эту ссылку)
-    private ElevatorState state;            //состояние
-    private ElevatorController controller;  //контроллер лифтов
-    private boolean isMoveDetected;         //значение датчика
-    private HashSet<Floor> destinations;    //список этажей, на которые лифт должен приехать
-    private Floor runningDestination;       //текущий этаж назначения
-    private int endLabel = 0;
+    private final int id;                       //id лифта
+    private final HashSet<Floor> destinations;  //список этажей, на которые лифт должен приехать
+    private final ElevatorController controller;//контроллер лифтов
+
+    private boolean isMoveDetected;             //значение датчика
+    private Floor runningFloor;                 //текущий этаж (значение дисплея можно будет получить через эту ссылку)
+    private ElevatorState state;                //состояние
+    private Floor runningDestination;           //текущий этаж назначения
+
+    private boolean noNeedMessage;              //служебное поле для логгирования
 
     public Elevator(ElevatorController controller, int id) {
         this.id = id;
@@ -25,30 +28,30 @@ public class Elevator implements IUpdatable {
     public void updateState() {
         StringBuilder message = new StringBuilder();
         switch (state) {
-            case MOOVING_UP -> {
-                message.append("Лифт №" + id + " движется вверх");
+            case MOVING_UP -> {
+                message.append("Лифт №").append(id).append(" движется вверх");
                 setNewFloor(true);
             }
-            case MOOVING_DOWN -> {
-                message.append("Лифт №" + id + " движется ввниз");
+            case MOVING_DOWN -> {
+                message.append("Лифт №").append(id).append(" движется ввниз");
                 setNewFloor(false);
             }
-            case OPENNING_DOORS -> {
-                message.append("Лифт №" + id + " открыл двери");
-                state = ElevatorState.STAY_WITH_OPENNED_DOORS;
+            case OPENING_DOORS -> {
+                message.append("Лифт №").append(id).append(" открыл двери");
+                state = ElevatorState.STAY_WITH_OPENED_DOORS;
             }
-            case STAY_WITH_OPENNED_DOORS -> {
-                message.append("Лифт №" + id + " стоит с открытыми дверьми, проверка датчика");
+            case STAY_WITH_OPENED_DOORS -> {
+                message.append("Лифт №").append(id).append(" стоит с открытыми дверьми, проверка датчика");
                 if (!isMoveDetected) {
                     state = ElevatorState.CLOSING_DOORS;
                 }
             }
             case CLOSING_DOORS -> {
-                message.append("Лифт №" + id + " закрывает двери");
+                message.append("Лифт №").append(id).append(" закрывает двери");
                 state = ElevatorState.WAITING;
             }
             default -> {
-                message.append("Лифт №" + id + " ожидает команды");
+                message.append("Лифт №").append(id).append(" ожидает команды");
                 if (!destinations.isEmpty()) { //если есть этажи, куда может приехать лифт
                     getNearestDestination();
                     if (runningFloor == runningDestination || runningDestination == null) {
@@ -56,9 +59,9 @@ public class Elevator implements IUpdatable {
                         return;
                     }
                     if (isFloorUnder()) {
-                        state = ElevatorState.MOOVING_DOWN;
+                        state = ElevatorState.MOVING_DOWN;
                     } else {
-                        state = ElevatorState.MOOVING_UP;
+                        state = ElevatorState.MOVING_UP;
                     }
                 } else {
                     checkFloor();
@@ -67,9 +70,59 @@ public class Elevator implements IUpdatable {
         }
         message.append(". Текущий этаж: ")
                 .append(runningFloor.getLabel());
-        System.out.println(message);
+        if (noNeedMessage) {
+            noNeedMessage = false;
+        } else {
+            System.out.println(message);
+        }
     }
 
+    //Основные методы
+    //Нажать кнопку этажа
+    public void pressFloorButton(int i) {
+        try {
+            destinations.add(controller.getFloorByLabel(i));
+            System.out.println("В лифте №" + id + " нажата кнопка " + i);
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    //Кнопка закрытия дверей
+    public void pressClosingDoorsButton() {
+        if (state == ElevatorState.STAY_WITH_OPENED_DOORS && !isMoveDetected) {
+            state = ElevatorState.CLOSING_DOORS;
+        }
+    }
+
+    //Кнопка открытия дверей
+    public void pressOpeningDoorsButton() {
+        if (state == ElevatorState.WAITING || state == ElevatorState.CLOSING_DOORS) {
+            state = ElevatorState.OPENING_DOORS;
+        }
+    }
+
+    //Кнопка вызова диспетчера (сброс состояния)
+    public void pressCallButton() {
+        //Симуляция работы диспетчера
+        destinations.clear();
+        //Устранение поломок/неисправностей
+        state = ElevatorState.WAITING;
+        for (Floor floor : controller.getFloors()) {
+            if (floor.getWaitedElevator() == this) {
+                floor.clearFloor();
+            }
+            //Необходимо пройтись по всем этажам, тк ошибка в работе
+            //могла возникнуть из-за одновременного ожидания на разных этажах
+        }
+    }
+
+    //Значение датчика
+    public boolean isMoveDetected() {
+        return this.isMoveDetected;
+    }
+
+    //Вспомогательные методы
     public void addDestination(Floor floor) {
         if (runningDestination == null) {
             runningDestination = floor;
@@ -87,15 +140,6 @@ public class Elevator implements IUpdatable {
 
     public boolean isBusy() { //занят ли лифт
         return state != ElevatorState.WAITING;
-    }
-
-    public void pressFloorButton(int i) { //нажать кнопку этажа
-        try {
-            destinations.add(controller.getFloorByLabel(i));
-            System.out.println("В лифте №" + id + " нажата кнопка " + i);
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-        }
     }
 
     //Private
@@ -119,13 +163,14 @@ public class Elevator implements IUpdatable {
     private void checkFloor() { //проверка, можно ли остановиться на текущем этаже
         if (
             destinations.contains(runningFloor) || //если в назначенных этажах есть текущий или на этаже нажата кнопка
-            (runningFloor.isButtonPressed() && state != ElevatorState.MOOVING_UP)  //и лифт едет вниз
+            (runningFloor.isButtonPressed() && state != ElevatorState.MOVING_UP)  //и лифт едет вниз
         ) {
             destinations.remove(runningFloor);
             runningFloor.clearFloor();
             System.out.println("Лифт №" + id + " начал открывать двери. Текущий этаж: " + runningFloor.getLabel());
-            state = ElevatorState.OPENNING_DOORS;
+            state = ElevatorState.OPENING_DOORS;
             runningFloor.setWaitedElevator(this);
+            noNeedMessage = true;
         }
         //при движении вверх нет смысла останавливаться на тех этажах, которые не указаны в назначенных, так как
         //люди с большей вероятностью будут желать спуститься
@@ -160,10 +205,6 @@ public class Elevator implements IUpdatable {
 
     public void setIsMoveDetected(boolean val) {
         this.isMoveDetected = val;
-    }
-
-    public void setEndLabel(int endLabel) {
-        this.endLabel = endLabel;
     }
 
     public int getId() {
